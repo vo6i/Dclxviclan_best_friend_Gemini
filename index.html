@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dclxviclan best friend Gemini</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #1a202c; color: #e2e8f0; }
+        .chat-container { max-width: 600px; margin: auto; padding: 20px; border-radius: 10px; background-color: #2d3748; }
+        .chat-message { display: flex; margin-bottom: 15px; }
+        .chat-message.user { justify-content: flex-end; }
+        .chat-message.bot { justify-content: flex-start; }
+        .message-bubble { padding: 10px 15px; border-radius: 20px; max-width: 80%; cursor: pointer; }
+        .message-bubble.user { background-color: #4CAF50; color: white; border-bottom-right-radius: 5px; }
+        .message-bubble.bot { background-color: #3b4455; color: white; border-bottom-left-radius: 5px; }
+        .input-container { display: flex; margin-top: 20px; align-items: center; }
+        .input-container input { flex-grow: 1; padding: 10px; border-radius: 20px; border: none; background-color: #4a5568; color: white; }
+        .input-container button { padding: 10px 15px; border-radius: 20px; color: white; border: none; cursor: pointer; margin-left: 10px; transition: background-color 0.3s; }
+        .input-container button#send-button { background-color: #4CAF50; }
+        .input-container button#send-button:hover { background-color: #45a049; }
+        .input-container button#voice-input-button { background-color: #f56565; }
+        .input-container button#voice-input-button:hover { background-color: #e53e3e; }
+        .spinner { border: 4px solid rgba(255, 255, 255, 0.3); border-radius: 50%; border-top-color: #4CAF50; width: 24px; height: 24px; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .voice-active { animation: pulse 1s infinite; }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 flex items-center justify-center min-h-screen">
+    <div class="chat-container">
+        <h1 class="text-3xl font-bold text-center mb-6 text-green-500">Dclxviclan best friend Gemini</h1>
+        <div id="chat-messages" class="h-96 overflow-y-auto mb-4 p-4 rounded-lg bg-gray-800">
+            <!-- Initial message from the bot -->
+            <div class="chat-message bot">
+                <div class="message-bubble bot" onclick="speakText(this.textContent)">
+                    Привет! Я твой философский собеседник. Задавай мне вопросы о жизни, истине, свободе или о чем-то еще, что тебя волнует.
+                </div>
+            </div>
+        </div>
+        <div class="input-container">
+            <input type="text" id="user-input" placeholder="Введите ваш вопрос..." class="focus:ring-green-500 focus:border-green-500">
+            <button id="voice-input-button"><i class="fas fa-microphone"></i></button>
+            <button id="send-button"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Speech Synthesis function in the global scope
+        const speakText = (text) => {
+            if (window.speechSynthesis) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'en-US'; // Use English for stability
+                window.speechSynthesis.speak(utterance);
+            } else {
+                console.error("Web Speech API is not supported in this browser.");
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const chatMessages = document.getElementById('chat-messages');
+            const userInput = document.getElementById('user-input');
+            const sendButton = document.getElementById('send-button');
+            const voiceInputButton = document.getElementById('voice-input-button');
+            const spinner = document.createElement('i');
+            spinner.classList.add('fas', 'fa-spinner', 'fa-spin', 'ml-3');
+
+            let chatHistory = [];
+            let recognition;
+            let speaking = false;
+            
+            // Add initial bot message to history
+            chatHistory.push({ role: "model", parts: [{ text: "Привет! Я твой философский собеседник. Задавай мне вопросы о жизни, истине, свободе или о чем-то еще, что тебя волнует." }] });
+            
+            // Speak initial bot message after the DOM is ready
+            const initialMessageText = document.querySelector('.message-bubble.bot').textContent.trim();
+            speakText(initialMessageText);
+
+
+            const appendMessage = (sender, text) => {
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('chat-message', sender);
+                const bubbleDiv = document.createElement('div');
+                bubbleDiv.classList.add('message-bubble', sender);
+                bubbleDiv.textContent = text;
+                
+                if (sender === 'bot') {
+                     // Add onclick handler to the bubble to replay the sound
+                    bubbleDiv.onclick = () => speakText(text);
+                }
+                
+                messageDiv.appendChild(bubbleDiv);
+                chatMessages.appendChild(messageDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll to the bottom
+            };
+
+            const callGemini = async (prompt) => {
+                // Disable input and show spinner
+                sendButton.disabled = true;
+                sendButton.classList.add('opacity-50');
+                sendButton.innerHTML = '';
+                sendButton.appendChild(spinner);
+                userInput.disabled = true;
+                voiceInputButton.disabled = true;
+                
+                try {
+                    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                    const payload = { contents: chatHistory };
+                    const apiKey = "";
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                    
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+                    
+                    let text = "Извините, произошла ошибка. Попробуйте еще раз.";
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        text = result.candidates[0].content.parts[0].text;
+                        chatHistory.push({ role: "model", parts: [{ text: text }] });
+                    }
+                    
+                    appendMessage('bot', text);
+                    // Automatically speak the bot's response
+                    speakText(text);
+                    
+                } catch (error) {
+                    console.error("API call failed:", error);
+                    appendMessage('bot', "Извините, произошла ошибка. Попробуйте еще раз.");
+                } finally {
+                    // Re-enable input and hide spinner
+                    sendButton.disabled = false;
+                    sendButton.classList.remove('opacity-50');
+                    sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
+                    userInput.disabled = false;
+                    voiceInputButton.disabled = false;
+                    userInput.value = '';
+                    userInput.focus();
+                }
+            };
+
+            const sendMessage = () => {
+                const userText = userInput.value.trim();
+                if (userText) {
+                    appendMessage('user', userText);
+                    callGemini(userText);
+                }
+            };
+
+            sendButton.addEventListener('click', sendMessage);
+            userInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+            
+            // Web Speech Recognition (Voice-to-Text)
+            if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                // Removed recognition.lang = 'en-US'; to use default system language
+
+                voiceInputButton.addEventListener('click', () => {
+                    try {
+                        recognition.start();
+                        voiceInputButton.classList.add('voice-active');
+                        voiceInputButton.disabled = true;
+                        userInput.placeholder = "Слушаю...";
+                    } catch (e) {
+                        console.error("SpeechRecognition error:", e);
+                        voiceInputButton.disabled = false;
+                        userInput.placeholder = "Введите ваш вопрос...";
+                    }
+                });
+
+                recognition.addEventListener('result', (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    userInput.value = transcript;
+                    sendMessage();
+                });
+
+                recognition.addEventListener('end', () => {
+                    voiceInputButton.classList.remove('voice-active');
+                    voiceInputButton.disabled = false;
+                    userInput.placeholder = "Введите ваш вопрос...";
+                });
+
+                recognition.addEventListener('error', (event) => {
+                    console.error('Speech recognition error:', event.error);
+                    voiceInputButton.classList.remove('voice-active');
+                    voiceInputButton.disabled = false;
+                    userInput.placeholder = "Введите ваш вопрос...";
+                    appendMessage('bot', `Произошла ошибка распознавания речи: ${event.error}. Пожалуйста, попробуйте еще раз.`);
+                });
+            } else {
+                voiceInputButton.style.display = 'none';
+                console.warn('Web Speech Recognition API is not supported in this browser.');
+            }
+        });
+    </script>
+</body>
+</html>

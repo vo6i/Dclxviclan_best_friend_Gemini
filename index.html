@@ -31,10 +31,81 @@
             50% { transform: scale(1.1); }
             100% { transform: scale(1); }
         }
+        
+        .robot-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .robot-face {
+            font-size: 5rem;
+            color: #66ff66; /* Ярко-зеленый цвет для эффекта */
+            text-shadow: 0 0 10px #66ff66;
+            transition: all 0.3s ease;
+        }
+
+        .robot-eyes {
+            animation: none; /* Начальное состояние */
+        }
+        .robot-eyes.talking {
+            animation: eyes-blink 2s infinite alternate;
+        }
+
+        .robot-mouth {
+            animation: none; /* Начальное состояние */
+        }
+        .robot-mouth.talking {
+            animation: mouth-talk 0.5s infinite steps(1);
+        }
+
+        @keyframes eyes-blink {
+            0%, 20%, 40%, 60%, 80%, 100% {
+                opacity: 1;
+            }
+            10%, 30%, 50%, 70%, 90% {
+                opacity: 0.5;
+            }
+        }
+
+        @keyframes mouth-talk {
+            0% { content: "/"; }
+            33% { content: "-"; }
+            66% { content: "_"; }
+            100% { content: "\\"; }
+        }
+
+        /* SVG animation for the mouth */
+        .mouth-text {
+            fill: #66ff66;
+            animation: none;
+        }
+
+        .mouth-text.talking {
+            animation: talking-mouth 0.5s infinite steps(1);
+        }
+
+        @keyframes talking-mouth {
+            0% { content: "/"; }
+            33% { content: "-"; }
+            66% { content: "_"; }
+            100% { content: "\\"; }
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100 flex items-center justify-center min-h-screen">
     <div class="chat-container">
+        <!-- SVG Robot Animation -->
+        <div class="robot-container">
+            <svg id="robot-svg" width="100%" height="100" viewBox="0 0 300 100">
+                <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" class="robot-face" font-size="60" fill="#66ff66">
+                    <!-- Глаза -->
+                    <tspan x="45%" y="45%" id="robot-eyes">- -</tspan>
+                    <!-- Рот -->
+                    <tspan x="50%" y="80%" id="robot-mouth">---</tspan>
+                </text>
+            </svg>
+        </div>
+
         <h1 class="text-3xl font-bold text-center mb-6 text-green-500">Dclxviclan best friend Gemini</h1>
         <div id="chat-messages" class="h-96 overflow-y-auto mb-4 p-4 rounded-lg bg-gray-800">
             <!-- Initial message from the bot -->
@@ -52,15 +123,50 @@
     </div>
 
     <script>
-        // Initialize Speech Synthesis function in the global scope
+        // Инициализация функции синтеза речи в глобальной области видимости
         const speakText = (text) => {
             if (window.speechSynthesis) {
                 const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'en-US'; // Use English for stability
+                utterance.lang = 'ru-RU'; // Используем русский для стабильности
                 window.speechSynthesis.speak(utterance);
             } else {
                 console.error("Web Speech API is not supported in this browser.");
             }
+        };
+
+        const robotEyes = document.getElementById('robot-eyes');
+        const robotMouth = document.getElementById('robot-mouth');
+        const mouthTextVariations = ['\\', '-', '_', '/'];
+        let mouthAnimationInterval;
+
+        // Функция для активации анимации робота
+        const startRobotAnimation = () => {
+            robotEyes.textContent = '- -'; // Устанавливаем глаза в исходное состояние
+            robotMouth.textContent = '/'; // Начинаем с первого символа
+            
+            // Анимация глаз
+            let eyeState = true;
+            let eyeBlinkInterval = setInterval(() => {
+                robotEyes.style.opacity = eyeState ? '0.5' : '1';
+                eyeState = !eyeState;
+            }, 200);
+
+            // Анимация рта
+            let mouthIndex = 0;
+            mouthAnimationInterval = setInterval(() => {
+                mouthIndex = (mouthIndex + 1) % mouthTextVariations.length;
+                robotMouth.textContent = mouthTextVariations[mouthIndex];
+            }, 100);
+
+            return { eyeBlinkInterval, mouthAnimationInterval };
+        };
+
+        // Функция для остановки анимации робота
+        const stopRobotAnimation = (intervals) => {
+            clearInterval(intervals.eyeBlinkInterval);
+            clearInterval(intervals.mouthAnimationInterval);
+            robotEyes.style.opacity = '1';
+            robotMouth.textContent = '---'; // Возвращаем рот в молчаливое состояние
         };
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -73,15 +179,14 @@
 
             let chatHistory = [];
             let recognition;
-            let speaking = false;
-            
-            // Add initial bot message to history
+            let robotAnimationIntervals;
+
+            // Добавляем начальное сообщение бота в историю
             chatHistory.push({ role: "model", parts: [{ text: "Привет! Я твой философский собеседник. Задавай мне вопросы о жизни, истине, свободе или о чем-то еще, что тебя волнует." }] });
             
-            // Speak initial bot message after the DOM is ready
+            // Озвучиваем начальное сообщение после загрузки DOM
             const initialMessageText = document.querySelector('.message-bubble.bot').textContent.trim();
             speakText(initialMessageText);
-
 
             const appendMessage = (sender, text) => {
                 const messageDiv = document.createElement('div');
@@ -91,20 +196,141 @@
                 bubbleDiv.textContent = text;
                 
                 if (sender === 'bot') {
-                     // Add onclick handler to the bubble to replay the sound
+                     // Добавляем обработчик onclick для повторного воспроизведения
                     bubbleDiv.onclick = () => speakText(text);
                 }
                 
                 messageDiv.appendChild(bubbleDiv);
                 chatMessages.appendChild(messageDiv);
-                chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll to the bottom
+                chatMessages.scrollTop = chatMessages.scrollHeight; // Автоматическая прокрутка вниз
             };
 
             const callGemini = async (prompt) => {
-                // Disable input and show spinner
+                // Отключаем ввод и показываем спиннер
                 sendButton.disabled = true;
                 sendButton.classList.add('opacity-50');
                 sendButton.innerHTML = '';
+                sendButton.appendChild(spinner);
+                userInput.disabled = true;
+                voiceInputButton.disabled = true;
+                
+                // Запускаем анимацию робота
+                robotAnimationIntervals = startRobotAnimation();
+                
+                try {
+                    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                    const payload = { contents: chatHistory };
+                    
+                    // Вставьте ваш API-ключ здесь, между кавычками.
+                    // Вы можете получить его на https://aistudio.google.com/app/apikey
+                    const apiKey = "AIzaSyDsSy2SBIhesbML__a0CLZaWxu-a4wv51s"; 
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                    
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+                    
+                    let text = "Извините, произошла ошибка. Попробуйте еще раз.";
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        text = result.candidates[0].content.parts[0].text;
+                        chatHistory.push({ role: "model", parts: [{ text: text }] });
+                    }
+                    
+                    appendMessage('bot', text);
+                    // Автоматически озвучиваем ответ бота
+                    speakText(text);
+                    
+                } catch (error) {
+                    console.error("API call failed:", error);
+                    appendMessage('bot', "Извините, произошла ошибка. Попробуйте еще раз.");
+                } finally {
+                    // Останавливаем анимацию робота
+                    stopRobotAnimation(robotAnimationIntervals);
+                    // Включаем ввод и скрываем спиннер
+                    sendButton.disabled = false;
+                    sendButton.classList.remove('opacity-50');
+                    sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
+                    userInput.disabled = false;
+                    voiceInputButton.disabled = false;
+                    userInput.value = '';
+                    userInput.focus();
+                }
+            };
+
+            const sendMessage = () => {
+                const userText = userInput.value.trim();
+                if (userText) {
+                    appendMessage('user', userText);
+                    callGemini(userText);
+                }
+            };
+
+            sendButton.addEventListener('click', sendMessage);
+            userInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+            
+            // Web Speech Recognition (Voice-to-Text)
+            if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+
+                voiceInputButton.addEventListener('click', () => {
+                    try {
+                        recognition.start();
+                        voiceInputButton.classList.add('voice-active');
+                        voiceInputButton.disabled = true;
+                        userInput.placeholder = "Слушаю...";
+                        // При начале голосового ввода, робот замолкает
+                        robotEyes.textContent = 'o o';
+                        robotMouth.textContent = '---';
+                    } catch (e) {
+                        console.error("SpeechRecognition error:", e);
+                        voiceInputButton.disabled = false;
+                        userInput.placeholder = "Введите ваш вопрос...";
+                    }
+                });
+
+                recognition.addEventListener('result', (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    userInput.value = transcript;
+                    sendMessage();
+                });
+
+                recognition.addEventListener('end', () => {
+                    voiceInputButton.classList.remove('voice-active');
+                    voiceInputButton.disabled = false;
+                    userInput.placeholder = "Введите ваш вопрос...";
+                    // После голосового ввода, робот возвращается в исходное состояние
+                    robotEyes.textContent = '- -';
+                    robotMouth.textContent = '---';
+                });
+
+                recognition.addEventListener('error', (event) => {
+                    console.error('Speech recognition error:', event.error);
+                    voiceInputButton.classList.remove('voice-active');
+                    voiceInputButton.disabled = false;
+                    userInput.placeholder = "Введите ваш вопрос...";
+                    appendMessage('bot', `Произошла ошибка распознавания речи: ${event.error}. Пожалуйста, попробуйте еще раз.`);
+                });
+            } else {
+                voiceInputButton.style.display = 'none';
+                console.warn('Web Speech Recognition API is not supported in this browser.');
+            }
+        });
+    </script>
+</body>
+</html>
                 sendButton.appendChild(spinner);
                 userInput.disabled = true;
                 voiceInputButton.disabled = true;
